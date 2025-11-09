@@ -1,0 +1,48 @@
+name: Daily greendot
+
+on:
+  schedule:
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-greendot
+  cancel-in-progress: false
+
+jobs:
+  commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Toggle one character and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'WillieTheWhale'
+          git config user.email '217792102+WillieTheWhale@users.noreply.github.com'
+          git pull --ff-only origin main
+          day=$(date -u +%F)
+          message="grid daily $day"
+          if git log origin/main --format=%s --grep="^${message}$" | grep -Fxq "$message"; then
+            echo "Already committed for $day."
+            exit 0
+          fi
+          if [[ $(wc -c < .greendot) -ne 1 ]]; then
+            echo 'Expected .greendot to contain exactly one character.' >&2
+            exit 1
+          fi
+          case "$(cat .greendot)" in
+            0) printf '1' > .greendot ;;
+            1) printf '0' > .greendot ;;
+            *) echo 'Expected .greendot to contain 0 or 1.' >&2; exit 1 ;;
+          esac
+          git add -- .greendot
+          git commit -m "$message"
+          git push origin HEAD:main
